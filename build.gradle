@@ -6,6 +6,12 @@
  * User Manual available at https://docs.gradle.org/5.5/userguide/tutorial_java_projects.html
  */
 
+buildscript {
+    dependencies {
+        classpath files('src/dist/config')
+    }
+}
+
 plugins {
     id 'groovy'
     id 'application'
@@ -18,7 +24,6 @@ repositories {
 
 application {
     mainClassName = 'SoundMan.App'
-    executableDir = 'bin'
 }
 
 jar {
@@ -40,4 +45,18 @@ dependencies {
             'ch.qos.logback:logback-classic:1.2.3',
             'org.codehaus.groovy:groovy-all:2.5.8'
     )
+}
+
+startScripts {
+    classpath += files('src/dist/config')
+    doLast {
+        def windowsScriptFile = file getWindowsScript()
+        def unixScriptFile    = file getUnixScript()
+        windowsScriptFile.text = windowsScriptFile.text.replace('%APP_HOME%\\lib\\config', '%APP_HOME%\\config')
+        unixScriptFile.text  = unixScriptFile.text.replace('$APP_HOME/lib/config', '$APP_HOME/config')
+    }
+}
+
+tasks.withType(JavaExec) {
+    classpath += files('src/dist/config')
 }

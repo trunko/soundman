@@ -41,7 +41,7 @@ class App extends ListenerAdapter {
         } catch (IOException ex) {
             LOGGER.error("Error reading configuration file.", ex)
             println "Error reading configuration file."
-            return
+
         }
 
         try {
@@ -54,6 +54,7 @@ class App extends ListenerAdapter {
             LOGGER.info("Successfully logged in!")
         } catch (Exception ex) {
             LOGGER.error("Error while executing bot initialization.", ex)
+            println "Error while executing bot initialization."
         }
     }
 

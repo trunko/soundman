@@ -1,5 +1,3 @@
-import static ch.qos.logback.classic.Level.INFO
-
 appender("FILE", RollingFileAppender) {
     file = "logs/SoundMan.log"
     rollingPolicy(TimeBasedRollingPolicy) {
