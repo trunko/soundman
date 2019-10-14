@@ -41,7 +41,6 @@ class App extends ListenerAdapter {
         } catch (IOException ex) {
             LOGGER.error("Error reading configuration file.", ex)
             println "Error reading configuration file."
-
         }
 
         try {
