@@ -10,6 +10,7 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack
 import net.dv8tion.jda.core.AccountType
 import net.dv8tion.jda.core.JDABuilder
 import net.dv8tion.jda.core.entities.Guild
+import net.dv8tion.jda.core.entities.Member
 import net.dv8tion.jda.core.entities.TextChannel
 import net.dv8tion.jda.core.entities.VoiceChannel
 import net.dv8tion.jda.core.events.message.MessageReceivedEvent
@@ -85,7 +86,7 @@ class App extends ListenerAdapter {
     @Override
     void onMessageReceived(MessageReceivedEvent event) {
         String command = event.getMessage().getContentRaw()
-        boolean helpList = false
+        Member member = event.getMember()
 
         if (!command.startsWith(prefix)) {
             return
@@ -93,9 +94,10 @@ class App extends ListenerAdapter {
 
         command = command.substring(prefix.length())
 
+        Guild guild = event.getGuild()
+
         if (command == "list" || command == "help") {
-            String commandList = "Commands:\n" + "```\n" + prefix + "{sound_name}\n" + prefix + "{url}\n" + prefix
-            +"random\n" + prefix + "volume\n" + prefix + "skip\n" + "```\n"
+            String commandList = "Commands:\n" + "```\n" + prefix + "{sound_name}\n" + prefix + "{url}\n" + prefix + "random\n" + prefix + "volume\n" + prefix + "skip\n" + "```\n"
 
             if (link != null && !link.isEmpty()) {
                 commandList = commandList.concat("Sound List: $link")
@@ -106,12 +108,7 @@ class App extends ListenerAdapter {
             String finalCommandList = commandList
             event.getAuthor().openPrivateChannel().queue({ channel -> channel.sendMessage(finalCommandList).queue() })
 
-            helpList = true
-        }
-
-        Guild guild = event.getGuild()
-
-        if (guild != null) {
+        } else if (guild != null) {
             if (command == "skip") {
                 println "\nSkipping to next track."
                 LOGGER.info("Skipping to next track.")
@@ -119,13 +116,13 @@ class App extends ListenerAdapter {
             } else if (command.startsWith("https://") || command.startsWith("http://")) {
                 println "\nSound URL requested."
                 LOGGER.info("Sound URL requested.")
-                loadAndPlay(event.getTextChannel(), command, false)
+                loadAndPlay(event.getTextChannel(), command, false, member)
             } else if (command.startsWith("random")) {
                 try {
                     String sound = getRandomSoundPath()
                     println "\nRandom sound requested: ${sound.substring(path.length()).split("\\.")[0]}"
                     LOGGER.info("Random sound requested: {}", sound.substring(path.length()).split("\\.")[0])
-                    loadAndPlay(event.getTextChannel(), sound, true)
+                    loadAndPlay(event.getTextChannel(), sound, true, member)
                 } catch (Exception e) {
                     LOGGER.error(e.getMessage())
                 }
@@ -138,24 +135,21 @@ class App extends ListenerAdapter {
                 } catch (NumberFormatException ignored) {
                     LOGGER.error("Unable to parse '{}' as an integer to set the volume as.", command.split(" ")[1])
                 }
-            } else if (!helpList) {
+            } else {
                 println "\nSound requested: $command"
                 LOGGER.info("Sound requested: $command")
                 try {
-                    loadAndPlay(event.getTextChannel(), getFilePath(command), true)
+                    loadAndPlay(event.getTextChannel(), getFilePath(command), true, member)
                 } catch (Exception e) {
                     LOGGER.error(e.getMessage())
                 }
             }
 
-            if (!helpList) {
-                println "Requested by: ${event.getAuthor().getName()}"
-                LOGGER.info("Requested by: {}", event.getAuthor().getName())
-            }
+            println "Requested by: ${event.getAuthor().getName()}"
+            LOGGER.info("Requested by: {}", event.getAuthor().getName())
         }
 
         event.getMessage().delete().queue()
-
         super.onMessageReceived(event)
     }
 
@@ -208,7 +202,7 @@ class App extends ListenerAdapter {
         musicManager.player.setVolume(val)
     }
 
-    private void loadAndPlay(final TextChannel channel, final String trackUrl, boolean local) {
+    private void loadAndPlay(final TextChannel channel, final String trackUrl, boolean local, Member member) {
         GuildMusicManager musicManager = getGuildAudioPlayer(channel.getGuild())
 
         playerManager.loadItemOrdered(musicManager, trackUrl, new AudioLoadResultHandler() {
@@ -219,7 +213,7 @@ class App extends ListenerAdapter {
                     println "Adding to queue: ${track.getInfo().title}"
                 }
 
-                play(channel.getGuild(), musicManager, track)
+                play(channel.getGuild(), musicManager, track, member)
             }
 
             @Override
@@ -232,7 +226,7 @@ class App extends ListenerAdapter {
                 LOGGER.info("Adding to queue ${firstTrack.getInfo().title} (first track of playlist ${playlist.getName()})")
                 println "Adding to queue ${firstTrack.getInfo().title} (first track of playlist ${playlist.getName()})"
 
-                play(channel.getGuild(), musicManager, firstTrack)
+                play(channel.getGuild(), musicManager, firstTrack, member)
             }
 
             @Override
@@ -254,8 +248,8 @@ class App extends ListenerAdapter {
         })
     }
 
-    private static void play(Guild guild, GuildMusicManager musicManager, AudioTrack track) {
-        connectToFirstVoiceChannel(guild.getAudioManager())
+    private static void play(Guild guild, GuildMusicManager musicManager, AudioTrack track, Member member) {
+        connectToUserVoiceChannel(guild.getAudioManager(), member)
 
         musicManager.scheduler.queue(track)
     }
@@ -265,12 +259,14 @@ class App extends ListenerAdapter {
         musicManager.scheduler.nextTrack()
     }
 
-    private static void connectToFirstVoiceChannel(AudioManager audioManager) {
+    private static void connectToUserVoiceChannel(AudioManager audioManager, Member member) {
+        VoiceChannel channel = member.getVoiceState().getChannel()
+
         if (!audioManager.isConnected() && !audioManager.isAttemptingToConnect()) {
-            for (VoiceChannel voiceChannel in audioManager.getGuild().getVoiceChannels()) {
-                audioManager.openAudioConnection(voiceChannel)
-                break
-            }
+            audioManager.openAudioConnection(channel)
+        } else if (audioManager.isConnected() && channel != null && audioManager.getConnectedChannel() != channel) {
+            audioManager.openAudioConnection(channel)
+            sleep(1000)
         }
     }
 }
